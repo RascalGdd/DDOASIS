@@ -47,7 +47,7 @@ def add_all_arguments(parser, train):
     parser.add_argument('--z_dim', type=int, default=64, help="dimension of the latent z vector")
 
     if train:
-        parser.add_argument('--freq_print', type=int, default=1, help='frequency of showing training results')
+        parser.add_argument('--freq_print', type=int, default=1000, help='frequency of showing training results')
         parser.add_argument('--freq_save_ckpt', type=int, default=20000, help='frequency of saving the checkpoints')
         parser.add_argument('--freq_save_latest', type=int, default=10000, help='frequency of saving the latest model')
         parser.add_argument('--freq_smooth_loss', type=int, default=250, help='smoothing window for loss visualization')
