@@ -21,12 +21,14 @@ im_saver = utils.image_saver(opt)
 fid_computer = fid_pytorch(opt, dataloader_val)
 
 #--- create models ---#
-model = models.OASIS_model(opt)
+model = models.Unpaired_model(opt)
 model = models.put_on_multi_gpus(model, opt)
+
 
 #--- create optimizers ---#
 optimizerG = torch.optim.Adam(model.module.netG.parameters(), lr=opt.lr_g, betas=(opt.beta1, opt.beta2))
 optimizerD = torch.optim.Adam(model.module.netD.parameters(), lr=opt.lr_d, betas=(opt.beta1, opt.beta2))
+optimizerDu = torch.optim.Adam(model.module.netDu.parameters(), lr=opt.lr_d, betas=(opt.beta1, opt.beta2))
 
 #--- the training loop ---#
 already_started = False
@@ -53,6 +55,13 @@ for epoch in range(start_epoch, opt.num_epochs):
         loss_D.backward()
         optimizerD.step()
 
+        #--- unconditional discriminator update ---#
+        model.module.netDu.zero_grad()
+        loss_Du, losses_Du_list = model(image, label, "losses_Du", losses_computer)
+        loss_Du, losses_Du_list = loss_Du.mean(), [loss.mean() if loss is not None else None for loss in losses_Du_list]
+        loss_Du.backward()
+        optimizerDu.step()
+
         #--- stats update ---#
         if not opt.no_EMA:
             utils.update_EMA(model, cur_iter, dataloader, opt)
@@ -67,7 +76,7 @@ for epoch in range(start_epoch, opt.num_epochs):
             is_best = fid_computer.update(model, cur_iter)
             if is_best:
                 utils.save_networks(opt, cur_iter, model, best=True)
-        visualizer_losses(cur_iter, losses_G_list+losses_D_list)
+        visualizer_losses(cur_iter, losses_G_list+losses_D_list+losses_Du_list)
 
 #--- after training ---#
 utils.update_EMA(model, cur_iter, dataloader, opt, force_run_stats=True)

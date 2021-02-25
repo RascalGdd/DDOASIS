@@ -47,7 +47,7 @@ def add_all_arguments(parser, train):
     parser.add_argument('--z_dim', type=int, default=64, help="dimension of the latent z vector")
 
     if train:
-        parser.add_argument('--freq_print', type=int, default=1000, help='frequency of showing training results')
+        parser.add_argument('--freq_print', type=int, default=1, help='frequency of showing training results')
         parser.add_argument('--freq_save_ckpt', type=int, default=20000, help='frequency of saving the checkpoints')
         parser.add_argument('--freq_save_latest', type=int, default=10000, help='frequency of saving the latest model')
         parser.add_argument('--freq_smooth_loss', type=int, default=250, help='smoothing window for loss visualization')
@@ -67,6 +67,8 @@ def add_all_arguments(parser, train):
         parser.add_argument('--no_balancing_inloss', action='store_true', default=False, help='if specified, do *not* use class balancing in the loss function')
         parser.add_argument('--no_labelmix', action='store_true', default=False, help='if specified, do *not* use LabelMix')
         parser.add_argument('--lambda_labelmix', type=float, default=10.0, help='weight for LabelMix regularization')
+        parser.add_argument('--Du_patch_size',type= int,default = None)
+        parser.add_argument('--netDu',type= str,default = "")
     else:
         parser.add_argument('--results_dir', type=str, default='./results/', help='saves testing results here.')
         parser.add_argument('--ckpt_iter', type=str, default='best', help='which epoch to load to evaluate a model')

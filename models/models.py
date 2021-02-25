@@ -9,14 +9,16 @@ from torch.nn import init
 import models.losses as losses
 
 
-class OASIS_model(nn.Module):
+class Unpaired_model(nn.Module):
     def __init__(self, opt):
-        super(OASIS_model, self).__init__()
+        super(Unpaired_model, self).__init__()
         self.opt = opt
         #--- generator and discriminator ---
         self.netG = generators.OASIS_Generator(opt)
         if opt.phase == "train":
             self.netD = discriminators.OASIS_Discriminator(opt)
+            self.netDu = discriminators.TileStyleGAN2Discriminator(3,opt = opt)
+            self.criterionGAN = losses.GANLoss("nonsaturating")
         self.print_parameter_count()
         self.init_networks()
         #--- EMA of generator weights ---
@@ -49,11 +51,12 @@ class OASIS_model(nn.Module):
             with torch.no_grad():
                 fake = self.netG(label)
             output_D_fake = self.netD(fake)
-            loss_D_fake = losses_computer.loss(output_D_fake, label, for_real=False)
+            loss_D_fake = losses_computer.loss(output_D_fake, label, for_real=True)
             loss_D += loss_D_fake
-            output_D_real = self.netD(image)
-            loss_D_real = losses_computer.loss(output_D_real, label, for_real=True)
-            loss_D += loss_D_real
+            # output_D_real = self.netD(image)
+            # loss_D_real = losses_computer.loss(output_D_real, label, for_real=True)
+            # loss_D += loss_D_real
+            loss_D_real = None
             if not self.opt.no_labelmix:
                 mixed_inp, mask = generate_labelmix(label, fake, image)
                 output_D_mixed = self.netD(mixed_inp)
@@ -63,6 +66,22 @@ class OASIS_model(nn.Module):
             else:
                 loss_D_lm = None
             return loss_D, [loss_D_fake, loss_D_real, loss_D_lm]
+        
+        if mode == "losses_Du":
+            
+            loss_Du = 0
+            with torch.no_grad():
+                fake = self.netG(label)
+            output_Du_fake = self.netDu(fake)
+            loss_Du_fake = self.criterionGAN(output_Du_fake, False).mean()
+            loss_Du += loss_Du_fake
+
+            output_Du_real = self.netDu(image)
+            loss_Du_real = self.criterionGAN(output_Du_real, True).mean()
+            loss_Du += loss_Du_real
+        
+            return loss_Du, [loss_Du_fake, loss_Du_real]
+
 
         if mode == "generate":
             with torch.no_grad():
@@ -90,17 +109,11 @@ class OASIS_model(nn.Module):
 
     def print_parameter_count(self):
         if self.opt.phase == "train":
-            networks = [self.netG, self.netD]
+            networks = [self.netG, self.netD,self.netDu]
         else:
             networks = [self.netG]
         for network in networks:
-            param_count = 0
-            for name, module in network.named_modules():
-                if (isinstance(module, nn.Conv2d)
-                        or isinstance(module, nn.Linear)
-                        or isinstance(module, nn.Embedding)):
-                    param_count += sum([p.data.nelement() for p in module.parameters()])
-            print('Created', network.__class__.__name__, "with %d parameters" % param_count)
+            print('Created', network.__class__.__name__, "with %d parameters" %  sum(p.numel() for p in network.parameters()))
 
     def init_networks(self):
         def init_weights(m, gain=0.02):
@@ -116,7 +129,7 @@ class OASIS_model(nn.Module):
                     init.constant_(m.bias.data, 0.0)
 
         if self.opt.phase == "train":
-            networks = [self.netG, self.netD]
+            networks = [self.netG, self.netD,self.netDu]
         else:
             networks = [self.netG]
         for net in networks:
@@ -153,7 +166,7 @@ def generate_labelmix(label, fake_image, real_image):
     target_map = torch.argmax(label, dim = 1, keepdim = True)
     all_classes = torch.unique(target_map)
     for c in all_classes:
-        target_map[target_map == c] = torch.randint(0,2,(1,))
+        target_map[target_map == c] = torch.randint(0,2,(1,)).to("cuda")
     target_map = target_map.float()
     mixed_image = target_map*real_image+(1-target_map)*fake_image
     return mixed_image, target_map
