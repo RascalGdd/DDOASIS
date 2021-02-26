@@ -45,7 +45,7 @@ class Unpaired_model(nn.Module):
             else:
                 loss_G_vgg = None
 
-            pred_fake = self.netD(fake)
+            pred_fake = self.netDu(fake)
             loss_G_GAN = self.criterionGAN(pred_fake, True).mean() 
             loss_G += loss_G_GAN
             
