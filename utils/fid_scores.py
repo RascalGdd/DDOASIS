@@ -43,11 +43,12 @@ class fid_pytorch():
                 if self.opt.gpu_ids != "-1":
                     image = image.cuda()
                 image = (image + 1) / 2
+                image = torch.nn.functional.interpolate(image,scale_factor = 0.5,mode ='nearest')
                 pool_val = self.model_inc(image.float())[0][:, :, 0, 0]
                 pool += [pool_val]
         return torch.cat(pool, 0)
 
-    def compute_fid_with_valid_path(self, netG, netEMA):
+    def compute_fid_with_valid_path(self, netG, netEMA,model = None):
         pool, logits, labels = [], [], []
         self.model_inc.eval()
         netG.eval()
@@ -56,11 +57,13 @@ class fid_pytorch():
         with torch.no_grad():
             for i, data_i in enumerate(self.val_dataloader):
                 image, label = models.preprocess_input(self.opt, data_i)
+                edges = model.module.compute_edges(image)
                 if self.opt.no_EMA:
-                    generated = netG(label)
+                    generated = netG(label,edges=edges)
                 else:
-                    generated = netEMA(label)
+                    generated = netEMA(label,edges=edges)
                 generated = (generated + 1) / 2
+                generated = torch.nn.functional.interpolate(generated,scale_factor= 0.5, mode='nearest')
                 pool_val = self.model_inc(generated.float())[0][:, :, 0, 0]
                 pool += [pool_val]
             pool = torch.cat(pool, 0)
@@ -130,7 +133,7 @@ class fid_pytorch():
 
     def update(self, model, cur_iter):
         print("--- Iter %s: computing FID ---" % (cur_iter))
-        cur_fid = self.compute_fid_with_valid_path(model.module.netG, model.module.netEMA)
+        cur_fid = self.compute_fid_with_valid_path(model.module.netG, model.module.netEMA,model)
         self.update_logs(cur_fid, cur_iter)
         print("--- FID at Iter %s: " % cur_iter, "{:.2f}".format(cur_fid))
         if cur_fid < self.best_fid:
@@ -161,6 +164,12 @@ class fid_pytorch():
         plt.grid(b=True, which='minor', color='#999999', linestyle='--', alpha=0.2)
         plt.savefig(self.path_to_save + "/plot_fid", dpi=600)
         plt.close()
+
+    def fid_test(self, model):
+        print("--- test: computing FID ---")
+        cur_fid = self.compute_fid_with_valid_path(model.module.netG, model.module.netEMA,model)
+        print("--- FID at test : ", "{:.2f}".format(cur_fid))
+        return cur_fid
 
 
 def torch_cov(m, rowvar=False):

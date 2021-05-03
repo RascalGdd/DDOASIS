@@ -47,6 +47,27 @@ class results_saver():
         im = Image.fromarray(im.astype(np.uint8))
         im.save(os.path.join(self.path_to_save[mode], name.split("/")[-1]).replace('.jpg', '.png'))
 
+class results_saver_mid_training():
+    def __init__(self, opt,current_iteration):
+        path = os.path.join(opt.results_dir, opt.name, current_iteration)
+        self.path_label = os.path.join(path, "label")
+        self.path_image = os.path.join(path, "image")
+        self.path_to_save = {"label": self.path_label, "image": self.path_image}
+        os.makedirs(self.path_label, exist_ok=True)
+        os.makedirs(self.path_image, exist_ok=True)
+        self.num_cl = opt.label_nc + 2
+
+    def __call__(self, label, generated, name):
+        assert len(label) == len(generated)
+        for i in range(len(label)):
+            im = tens_to_lab(label[i], self.num_cl)
+            self.save_im(im, "label", name[i])
+            im = tens_to_im(generated[i]) * 255
+            self.save_im(im, "image", name[i])
+
+    def save_im(self, im, mode, name):
+        im = Image.fromarray(im.astype(np.uint8))
+        im.save(os.path.join(self.path_to_save[mode], name.split("/")[-1]).replace('.jpg', '.png'))
 
 class timer():
     def __init__(self, opt):
@@ -71,7 +92,7 @@ class timer():
 
 class losses_saver():
     def __init__(self, opt):
-        self.name_list = ["Generator", "Vgg", "GAN","D_fake", "D_real", "LabelMix","Du_fake","Du_real"]
+        self.name_list = ["Generator", "Vgg", "GAN","edge",'featMatch',"D_fake", "D_real", "LabelMix","Du_fake","Du_real","Du_regularize"]
         self.opt = opt
         self.freq_smooth_loss = opt.freq_smooth_loss
         self.freq_save_loss = opt.freq_save_loss
@@ -144,7 +165,7 @@ def update_EMA(model, cur_iter, dataloader, opt, force_run_stats=False):
             num_upd = 0
             for i, data_i in enumerate(dataloader):
                 image, label = models.preprocess_input(opt, data_i)
-                fake = model.module.netEMA(label)
+                fake = model.module.netEMA(label,edges = model.module.compute_edges(image))
                 num_upd += 1
                 if num_upd > 50:
                     break
@@ -156,6 +177,7 @@ def save_networks(opt, cur_iter, model, latest=False, best=False):
     if latest:
         torch.save(model.module.netG.state_dict(), path+'/%s_G.pth' % ("latest"))
         torch.save(model.module.netD.state_dict(), path+'/%s_D.pth' % ("latest"))
+        torch.save(model.module.netDu.state_dict(), path + '/%s_Du.pth' % ("latest"))
         if not opt.no_EMA:
             torch.save(model.module.netEMA.state_dict(), path+'/%s_EMA.pth' % ("latest"))
         with open(os.path.join(opt.checkpoints_dir, opt.name)+"/latest_iter.txt", "w") as f:
@@ -163,6 +185,7 @@ def save_networks(opt, cur_iter, model, latest=False, best=False):
     elif best:
         torch.save(model.module.netG.state_dict(), path+'/%s_G.pth' % ("best"))
         torch.save(model.module.netD.state_dict(), path+'/%s_D.pth' % ("best"))
+        torch.save(model.module.netDu.state_dict(), path + '/%s_Du.pth' % ("best"))
         if not opt.no_EMA:
             torch.save(model.module.netEMA.state_dict(), path+'/%s_EMA.pth' % ("best"))
         with open(os.path.join(opt.checkpoints_dir, opt.name)+"/best_iter.txt", "w") as f:
@@ -170,6 +193,7 @@ def save_networks(opt, cur_iter, model, latest=False, best=False):
     else:
         torch.save(model.module.netG.state_dict(), path+'/%d_G.pth' % (cur_iter))
         torch.save(model.module.netD.state_dict(), path+'/%d_D.pth' % (cur_iter))
+        torch.save(model.module.netDu.state_dict(), path + '/%d_Du.pth' % (cur_iter))
         if not opt.no_EMA:
             torch.save(model.module.netEMA.state_dict(), path+'/%d_EMA.pth' % (cur_iter))
 
@@ -187,14 +211,15 @@ class image_saver():
     def visualize_batch(self, model, image, label, cur_iter):
         self.save_images(label, "label", cur_iter, is_label=True)
         self.save_images(image, "real", cur_iter)
+        edges = model.module.compute_edges(image)
         with torch.no_grad():
             model.eval()
-            fake = model.module.netG(label)
+            fake = model.module.netG(label,edges=edges)
             self.save_images(fake, "fake", cur_iter)
             model.train()
             if not self.opt.no_EMA:
                 model.eval()
-                fake = model.module.netEMA(label)
+                fake = model.module.netEMA(label,edges=edges)
                 self.save_images(fake, "fake_ema", cur_iter)
                 model.train()
 
@@ -221,7 +246,7 @@ def tens_to_im(tens):
 
 
 def tens_to_lab(tens, num_cl):
-    label_tensor = Colorize(tens, num_cl)
+    label_tensor = GreyScale(tens, num_cl)
     label_numpy = np.transpose(label_tensor.numpy(), (1, 2, 0))
     return label_numpy
 
@@ -235,6 +260,19 @@ def uint82bin(n, count=8):
     """returns the binary of integer n, count refers to amount of bits"""
     return ''.join([str((n >> y) & 1) for y in range(count - 1, -1, -1)])
 
+def GreyScale(tens, num_cl):
+    cmap = labelcolormap(num_cl)
+    cmap = torch.from_numpy(cmap[:num_cl])
+    size = tens.size()
+    color_image = torch.ByteTensor(3, size[1], size[2]).fill_(0)
+    tens = torch.argmax(tens, dim=0, keepdim=True)
+
+    for label in range(0, len(cmap)):
+        mask = (label == tens[0]).cpu()
+        color_image[0][mask] = label
+        color_image[1][mask] = label
+        color_image[2][mask] = label
+    return color_image
 
 def Colorize(tens, num_cl):
     cmap = labelcolormap(num_cl)
