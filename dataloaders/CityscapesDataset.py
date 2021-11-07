@@ -1,5 +1,6 @@
 import random
 import torch
+from torch.types import Number
 from torchvision import transforms as TR
 import os
 from PIL import Image
@@ -7,7 +8,7 @@ import numpy as np
 from tqdm import tqdm
 
 class CityscapesDataset(torch.utils.data.Dataset):
-    def __init__(self, opt, for_metrics,for_supervision = False):
+    def __init__(self, opt, for_metrics, dataset_supervised=None, for_supervision = False):
 
         opt.load_size =  512 if for_metrics else 512
         opt.crop_size =  512 if for_metrics else 512
@@ -23,18 +24,24 @@ class CityscapesDataset(torch.utils.data.Dataset):
         self.for_metrics = for_metrics
         self.for_supervision = False
         self.images, self.labels, self.paths = self.list_images()
-
+        if dataset_supervised != None:
+            for i in dataset_supervised.images:
+                self.images.remove(i)
+            for j in dataset_supervised.labels:
+                self.labels.remove(j)
         if opt.mixed_images and not for_metrics :
             self.mixed_index=np.random.permutation(len(self))
         else :
             self.mixed_index=np.arange(len(self))
 
         if for_supervision :
-
+        
             if opt.model_supervision == 0 :
                 return
             elif opt.model_supervision == 1 :
-                self.supervised_indecies = np.array(np.random.choice(len(self),opt.supervised_num),dtype=int)
+                
+                supervised_num = np.floor((opt.supervised_percentage/100) * len(self))
+                self.supervised_indecies = np.array(np.random.choice(len(self),int(supervised_num),replace=False),dtype=int)
             elif opt.model_supervision == 2 :
                 self.supervised_indecies = np.arange(len(self),dtype = int)
             images = []
