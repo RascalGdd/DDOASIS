@@ -341,6 +341,7 @@ class Semi_supervised_model(Model):
             else:
                 loss_D_lm = None
             return loss_D, [loss_D_fake, loss_D_real, loss_D_lm]
+            
         if mode == "losses_D_supervised":
             loss_D = 0
             with torch.no_grad():
