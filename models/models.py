@@ -253,7 +253,7 @@ class Unpaired_model(Model):
             segmentation = self.netD(fake)
             return segmentation
 
-        if mode == "Du_regulaize":
+        if mode == "Du_regularize":
             loss_Du = 0
             image.requires_grad = True
             real_pred = self.netDu(image)
@@ -395,7 +395,7 @@ class Semi_supervised_model(Model):
             segmentation = self.netD(fake)
             return segmentation
 
-        if mode == "Du_regulaize":
+        if mode == "Du_regularize":
             loss_Du = 0
             image.requires_grad = True
             real_pred = self.netDu(image)

@@ -83,10 +83,10 @@ for epoch in range(start_epoch, opt.num_epochs):
 
             #--- generator psuedo labels updates ---@
 
-            # --- unconditional discriminator regulaize ---#
+            # --- unconditional discriminator regularize ---#
             if i % opt.reg_every == 0:
                 model.module.netDu.zero_grad()
-                loss_reg, losses_reg_list = model(image, label, "Du_regulaize", losses_computer)
+                loss_reg, losses_reg_list = model(image, label, "Du_regularize", losses_computer)
                 loss_reg, losses_reg_list = loss_reg.mean(), [loss.mean() if loss is not None else None for loss in losses_reg_list]
                 loss_reg.backward()
                 optimizerDu.step()
@@ -153,10 +153,10 @@ for epoch in range(start_epoch, opt.num_epochs):
 
             #--- generator psuedo labels updates ---@
 
-            # --- unconditional discriminator regulaize ---#
+            # --- unconditional discriminator regularize ---#
             if i % opt.reg_every == 0:
                 model.module.netDu.zero_grad()
-                loss_reg, losses_reg_list = model(image, label, "Du_regulaize", losses_computer)
+                loss_reg, losses_reg_list = model(image, label, "Du_regularize", losses_computer)
                 loss_reg, losses_reg_list = loss_reg.mean(), [loss.mean() if loss is not None else None for loss in losses_reg_list]
                 loss_reg.backward()
                 optimizerDu.step()
