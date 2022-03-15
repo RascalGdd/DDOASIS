@@ -31,6 +31,6 @@ def get_dataloaders(opt):
    
     # dataloader_train =  dataloader_train.remove(dataloader_supervised.dataset.paths[0],1)
 
-    dataloader_val = torch.utils.data.DataLoader(dataset_val, batch_size = opt.batch_size, shuffle = False, drop_last=False)
+    dataloader_val = torch.utils.data.DataLoader(dataset_val, batch_size = 1, shuffle = False, drop_last=False)
     
     return dataloader_train,dataloader_supervised, dataloader_val
