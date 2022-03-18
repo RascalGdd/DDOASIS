@@ -316,31 +316,31 @@ class Semi_supervised_model(Model):
 
             return loss_G, [loss_G_adv, loss_G_vgg]
 
-        if mode == "losses_D_unsupervised":
-            loss_D = 0
-            with torch.no_grad():
-                fake = self.netG(label,edges = edges)
-            output_D_fake = self.netD(fake)
-            loss_D_fake = losses_computer.loss(output_D_fake, label, for_real=True)
-            loss_D += loss_D_fake
-            output_D_real = output_D_fake
-            loss_D_real = None
+        # if mode == "losses_D_unsupervised":
+        #     loss_D = 0
+        #     with torch.no_grad():
+        #         fake = self.netG(label,edges = edges)
+        #     output_D_fake = self.netD(fake)
+        #     loss_D_fake = losses_computer.loss(output_D_fake, label, for_real=True)
+        #     loss_D += loss_D_fake
+        #     output_D_real = output_D_fake
+        #     loss_D_real = None
 
-            """if self.opt.model_supervision == 2 :
-                output_D_real = self.netD(image)
-                loss_D_real = losses_computer.loss(output_D_real, label, for_real=True)
-                loss_D += loss_D_real"""
+        #     """if self.opt.model_supervision == 2 :
+        #         output_D_real = self.netD(image)
+        #         loss_D_real = losses_computer.loss(output_D_real, label, for_real=True)
+        #         loss_D += loss_D_real"""
 
-            if not self.opt.no_labelmix:
-                mixed_inp, mask = generate_labelmix(label, fake, image)
-                output_D_mixed = self.netD(mixed_inp)
-                loss_D_lm = self.opt.lambda_labelmix * losses_computer.loss_labelmix(mask, output_D_mixed,
-                                                                                     output_D_fake,
-                                                                                     output_D_real)
-                loss_D += loss_D_lm
-            else:
-                loss_D_lm = None
-            return loss_D, [loss_D_fake, loss_D_real, loss_D_lm]
+        #     if not self.opt.no_labelmix:
+        #         mixed_inp, mask = generate_labelmix(label, fake, image)
+        #         output_D_mixed = self.netD(mixed_inp)
+        #         loss_D_lm = self.opt.lambda_labelmix * losses_computer.loss_labelmix(mask, output_D_mixed,
+        #                                                                              output_D_fake,
+        #                                                                              output_D_real)
+        #         loss_D += loss_D_lm
+        #     else:
+        #         loss_D_lm = None
+        #     return loss_D, [loss_D_fake, loss_D_real, loss_D_lm]
             
         if mode == "losses_D_supervised":
             loss_D = 0
@@ -410,7 +410,7 @@ def put_on_multi_gpus(model, opt):
         model = DataParallelWithCallback(model, device_ids=gpus).cuda()
     else:
         model.module = model
-    assert len(opt.gpu_ids.split(",")) == 0 or opt.batch_size % len(opt.gpu_ids.split(",")) == 0
+    assert len(opt.gpu_ids.split(",")) == 0 or opt.batch_size_train % len(opt.gpu_ids.split(",")) == 0
     return model
 
 
