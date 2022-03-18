@@ -114,9 +114,6 @@ class losses_saver():
                             "Vgg_unsup",
                             "GAN",
                             "edge",
-                            "D_fake_unsup",
-                            "D_real_unsup",
-                            "LabelMix_unsup",
                             "Du_fake",
                             "Du_real",
                             "Du_regularize"]
