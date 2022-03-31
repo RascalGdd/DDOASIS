@@ -1,0 +1,2 @@
+python train.py --dataroot /data/public/cityscapes --mixed_images --add_vgg_loss  --name cityscapes_G9_oasisD_44_0.3 \
+--num_epochs 300 --supervised_percentage 0.33 --gpu_ids 0 --batch_size 1  --channels_G 16  --lr_g 0.0004 --lr_d 0.0004     
