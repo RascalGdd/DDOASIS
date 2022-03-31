@@ -6,9 +6,12 @@ import models.models as models
 import dataloaders.dataloaders as dataloaders
 import utils.utils as utils
 from utils.fid_scores import fid_pytorch
+from utils.miou_scores import miou_pytorch
+import os
+
 import config
 
-
+os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
 #--- read options ---#
 opt = config.read_arguments(train=True)
 
@@ -16,58 +19,208 @@ opt = config.read_arguments(train=True)
 timer = utils.timer(opt)
 visualizer_losses = utils.losses_saver(opt)
 losses_computer = losses.losses_computer(opt)
-dataloader, dataloader_val = dataloaders.get_dataloaders(opt)
+dataloader,dataloader_supervised, dataloader_val = dataloaders.get_dataloaders(opt)
 im_saver = utils.image_saver(opt)
 fid_computer = fid_pytorch(opt, dataloader_val)
+miou_computer = miou_pytorch(opt,dataloader_val)
 
 #--- create models ---#
-model = models.OASIS_model(opt)
+if opt.model_supervision == 0:
+    model = models.UnsupervisedModel(opt)
+elif opt.model_supervision == 1:
+    model = models.SemiSupervisedModel(opt)
+
 model = models.put_on_multi_gpus(model, opt)
 
+
 #--- create optimizers ---#
-optimizerG = torch.optim.Adam(model.module.netG.parameters(), lr=opt.lr_g, betas=(opt.beta1, opt.beta2))
+optimizerG = torch.optim.Adam(model.module.netG.parameters(), lr=opt.lr_g, betas=(opt.beta1, opt.beta2)) 
+optimizerDs = torch.optim.Adam(model.module.netDs.parameters(), lr=opt.lr_d, betas=(opt.beta1, opt.beta2))
 optimizerD = torch.optim.Adam(model.module.netD.parameters(), lr=opt.lr_d, betas=(opt.beta1, opt.beta2))
+optimizerDu = torch.optim.Adam(model.module.netDu.parameters(), lr=4*opt.lr_d, betas=(opt.beta1, opt.beta2))
+
+def loopy_iter(dataset):
+    while True :
+        for item in dataset :
+            yield item
 
 #--- the training loop ---#
 already_started = False
-start_epoch, start_iter = utils.get_start_iters(opt.loaded_latest_iter, len(dataloader))
+start_epoch, start_iter = utils.get_start_iters(opt.loaded_latest_iter, int(2975- 2975*opt.supervised_percentage))
+cur_iter = 0 
+if opt.model_supervision != 0 :
+    supervised_iter = loopy_iter(dataloader_supervised)
+print(start_epoch, start_iter,opt.num_epochs)
 for epoch in range(start_epoch, opt.num_epochs):
     for i, data_i in enumerate(dataloader):
+        print(i,start_iter)
         if not already_started and i < start_iter:
             continue
         already_started = True
-        cur_iter = epoch*len(dataloader) + i
+        
+        cur_iter = (epoch*len(dataloader) + i)*opt.batch_size
+        
         image, label = models.preprocess_input(opt, data_i)
 
-        #--- generator update ---#
-        model.module.netG.zero_grad()
-        loss_G, losses_G_list = model(image, label, "losses_G", losses_computer)
-        loss_G, losses_G_list = loss_G.mean(), [loss.mean() if loss is not None else None for loss in losses_G_list]
-        loss_G.backward()
-        optimizerG.step()
+        if opt.model_supervision == 0:
 
-        #--- discriminator update ---#
-        model.module.netD.zero_grad()
-        loss_D, losses_D_list = model(image, label, "losses_D", losses_computer)
-        loss_D, losses_D_list = loss_D.mean(), [loss.mean() if loss is not None else None for loss in losses_D_list]
-        loss_D.backward()
-        optimizerD.step()
+            #--- generator unconditional update ---#
+            model.module.netG.zero_grad()
+            loss_G, losses_G_list = model(image, label, "losses_G", losses_computer)
+            loss_G, losses_G_list = loss_G.mean(), [loss.mean() if loss is not None else None for loss in losses_G_list]
+            loss_G.backward()
+            optimizerG.step()
+            p_loss_G, p_losses_G_list = torch.zeros((1)), [torch.zeros((1))]
+            # --- generator conditional update ---#
+            # if opt.model_supervision != 0 :
+            #     supervised_data = next(supervised_iter)
+            #     p_image, p_label = models.preprocess_input(opt,supervised_data)
+            #     model.module.netG.zero_grad()
+            #     p_loss_G, p_losses_G_list = model(image, label, "losses_G_supervised", losses_computer)
+            #     p_loss_G, p_losses_G_list = p_loss_G.mean(), [loss.mean() if loss is not None else None for loss in p_losses_G_list]
+            #     p_loss_G.backward()
+            #     optimizerG.step()
+            # else :
+            #     p_loss_G, p_losses_G_list = torch.zeros((1)), [torch.zeros((1))]
 
-        #--- stats update ---#
-        if not opt.no_EMA:
-            utils.update_EMA(model, cur_iter, dataloader, opt)
-        if cur_iter % opt.freq_print == 0:
-            im_saver.visualize_batch(model, image, label, cur_iter)
-            timer(epoch, cur_iter)
-        if cur_iter % opt.freq_save_ckpt == 0:
-            utils.save_networks(opt, cur_iter, model)
-        if cur_iter % opt.freq_save_latest == 0:
-            utils.save_networks(opt, cur_iter, model, latest=True)
-        if cur_iter % opt.freq_fid == 0 and cur_iter > 0:
-            is_best = fid_computer.update(model, cur_iter)
-            if is_best:
-                utils.save_networks(opt, cur_iter, model, best=True)
-        visualizer_losses(cur_iter, losses_G_list+losses_D_list)
+
+            #--- discriminator update ---#
+            model.module.netD.zero_grad()
+            loss_D, losses_D_list = model(image, label, "losses_D", losses_computer)
+            loss_D, losses_D_list = loss_D.mean(), [loss.mean() if loss is not None else None for loss in losses_D_list]
+            loss_D.backward()
+            optimizerD.step()
+
+            #--- unconditional discriminator update ---#
+            model.module.netDu.zero_grad()
+            loss_Du, losses_Du_list = model(image, label, "losses_Du", losses_computer)
+            loss_Du, losses_Du_list = opt.reg_every*loss_Du.mean(), [loss.mean() if loss is not None else None for loss in losses_Du_list]
+            loss_Du.backward()
+            optimizerDu.step()
+
+            #--- generator psuedo labels updates ---@
+
+
+
+            # --- unconditional discriminator regulaize ---#
+            if i % opt.reg_every == 0:
+                model.module.netDu.zero_grad()
+                loss_reg, losses_reg_list = model(image, label, "Du_regularize", losses_computer)
+                loss_reg, losses_reg_list = loss_reg.mean(), [loss.mean() if loss is not None else None for loss in losses_reg_list]
+                loss_reg.backward()
+                optimizerDu.step()
+            else :
+                loss_reg, losses_reg_list = torch.zeros((1)), [torch.zeros((1))]
+
+            #--- stats update ---#
+            if not opt.no_EMA:
+
+                utils.update_EMA(model, cur_iter, dataloader, opt)
+            if cur_iter % opt.freq_print == 0:
+
+                im_saver.visualize_batch(model, image, label, cur_iter)
+                timer(epoch, cur_iter)
+            if cur_iter % opt.freq_save_ckpt == 0:
+
+                utils.save_networks(opt, cur_iter, model)
+            if cur_iter % opt.freq_save_latest == 0:
+
+                utils.save_networks(opt, cur_iter, model, latest=True)
+            if cur_iter % opt.freq_fid == 0 and cur_iter > 0:
+
+                is_best = fid_computer.update(model, cur_iter)
+                if is_best:
+                    utils.save_networks(opt, cur_iter, model, best=True)
+                _ = miou_computer.update(model,cur_iter)
+            visualizer_losses(cur_iter, losses_G_list+p_losses_G_list+losses_D_list+losses_Du_list+losses_reg_list)
+
+        elif opt.model_supervision == 1:
+
+
+            supervised_data = next(supervised_iter)
+            p_image, p_label = models.preprocess_input(opt, supervised_data)
+
+            #---generator_supervised_update---
+            model.module.netG.zero_grad()
+            p_loss_G, p_losses_G_list = model(p_image, p_label, "losses_G_supervised", losses_computer)
+            p_loss_G, p_losses_G_list = p_loss_G.mean(), [loss.mean() if loss is not None else None for loss in
+                                                          p_losses_G_list]
+            p_loss_G.backward()
+            optimizerG.step()
+
+            #---Ds_supervised_update---
+
+            model.module.netDs.zero_grad()
+            p_loss_Ds, p_losses_Ds_list = model(p_image, p_label, "losses_Ds_supervised", losses_computer)
+            p_loss_Ds, p_losses_Ds_list = p_loss_Ds.mean(), [loss.mean() if loss is not None else None for
+                                                                       loss in p_losses_Ds_list]
+            p_loss_Ds.backward()
+            optimizerDs.step()
+
+            #---generator_unsupervised_update--
+            model.module.netG.zero_grad()
+            loss_G, losses_G_list = model(image, label, "losses_G_unsupervised", losses_computer)
+            loss_G, losses_G_list = loss_G.mean(), [loss.mean() if loss is not None else None for loss in losses_G_list]
+            loss_G.backward()
+            optimizerG.step()
+
+            #---Du_unsupervised_update---
+            model.module.netDu.zero_grad()
+            loss_Du, losses_Du_list = model(image, label, "losses_Du_unsupervised", losses_computer)
+            loss_Du, losses_Du_list = opt.reg_every * loss_Du.mean(), [loss.mean() if loss is not None else None for
+                                                                       loss in losses_Du_list]
+            loss_Du.backward()
+            optimizerDu.step()
+
+            #---D_unsupervised_update---
+            model.module.netD.zero_grad()
+            loss_D, losses_D_list = model(image, label, "losses_D", losses_computer)
+            loss_D, losses_D_list = loss_D.mean(), [loss.mean() if loss is not None else None for loss in losses_D_list]
+            loss_D.backward()
+            optimizerD.step()
+
+            # --- Du regularize ---#
+            if i % opt.reg_every == 0:
+                model.module.netDu.zero_grad()
+                loss_reg, losses_reg_list = model(image, label, "Du_regularize", losses_computer)
+                loss_reg, losses_reg_list = loss_reg.mean(), [loss.mean() if loss is not None else None for loss in
+                                                              losses_reg_list]
+                loss_reg.backward()
+                optimizerDu.step()
+            else:
+                loss_reg, losses_reg_list = torch.zeros((1)), [torch.zeros((1))]
+
+            # --- stats update ---#
+            print("iter is:",cur_iter)
+            if not opt.no_EMA:
+                #print("EMA",cur_iter)
+                utils.update_EMA(model, cur_iter, dataloader, opt)
+            if cur_iter % opt.freq_print == 0:
+                print("visualize",cur_iter)
+                im_saver.visualize_batch(model, image, label, cur_iter)
+                #im_saver.visualize_batch(model, p_image, p_label, cur_iter)
+                timer(epoch, cur_iter)
+            if cur_iter % opt.freq_save_ckpt == 0:
+                #print("save",cur_iter)
+                utils.save_networks(opt, cur_iter, model)
+            if cur_iter % opt.freq_save_latest == 0:
+                #print("latest",cur_iter)
+                utils.save_networks(opt, cur_iter, model, latest=True)
+            if cur_iter % opt.freq_fid == 0 and cur_iter > 0:
+                #print("fid",cur_iter)
+                is_best = fid_computer.update(model, cur_iter)
+                if is_best:
+                    #print("best:",is_best)
+                    utils.save_networks(opt, cur_iter, model, best=True)
+                _ = miou_computer.update(model, cur_iter)
+            visualizer_losses(cur_iter,
+                              p_losses_G_list + p_losses_Ds_list + losses_G_list + losses_Du_list + losses_D_list+losses_reg_list)
+            # visualizer_losses(cur_iter,
+            #                   p_losses_G_list + p_losses_Ds_list )
+
+
+
+
 
 #--- after training ---#
 utils.update_EMA(model, cur_iter, dataloader, opt, force_run_stats=True)
