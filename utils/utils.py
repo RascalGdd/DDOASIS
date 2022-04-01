@@ -45,6 +45,7 @@ class results_saver():
 
     def save_im(self, im, mode, name):
         im = Image.fromarray(im.astype(np.uint8))
+        print(name.split("/")[-1])
         im.save(os.path.join(self.path_to_save[mode], name.split("/")[-1]).replace('.jpg', '.png'))
 
 class results_saver_mid_training():
@@ -176,24 +177,57 @@ def save_networks(opt, cur_iter, model, latest=False, best=False):
     os.makedirs(path, exist_ok=True)
     if latest:
         torch.save(model.module.netG.state_dict(), path+'/%s_G.pth' % ("latest"))
-        torch.save(model.module.netD.state_dict(), path+'/%s_D.pth' % ("latest"))
-        torch.save(model.module.netDu.state_dict(), path + '/%s_Du.pth' % ("latest"))
+        try:
+            torch.save(model.module.netD.state_dict(), path+'/%s_D.pth' % ("latest"))
+        except:
+            pass
+        try:
+            torch.save(model.module.netDu_image.state_dict(), path + '/%s_Du_image.pth' % ("latest"))
+            torch.save(model.module.netDu_label.state_dict(), path + '/%s_Du_label.pth' % ("latest"))
+        except:
+            pass
+        try:
+            torch.save(model.module.netDu.state_dict(), path + '/%s_Du.pth' % ("latest"))
+        except:
+            pass
         if not opt.no_EMA:
             torch.save(model.module.netEMA.state_dict(), path+'/%s_EMA.pth' % ("latest"))
         with open(os.path.join(opt.checkpoints_dir, opt.name)+"/latest_iter.txt", "w") as f:
             f.write(str(cur_iter))
     elif best:
         torch.save(model.module.netG.state_dict(), path+'/%s_G.pth' % ("best"))
-        torch.save(model.module.netD.state_dict(), path+'/%s_D.pth' % ("best"))
-        torch.save(model.module.netDu.state_dict(), path + '/%s_Du.pth' % ("best"))
+        try:
+            torch.save(model.module.netD.state_dict(), path+'/%s_D.pth' % ("best"))
+        except:
+            pass
+        try:
+            torch.save(model.module.netDu_image.state_dict(), path + '/%s_Du_image.pth' % ("best"))
+            torch.save(model.module.netDu_label.state_dict(), path + '/%s_Du_label.pth' % ("best"))
+        except:
+            pass
+        try:
+            torch.save(model.module.netDu.state_dict(), path + '/%s_Du.pth' % ("best"))
+        except:
+            pass
         if not opt.no_EMA:
             torch.save(model.module.netEMA.state_dict(), path+'/%s_EMA.pth' % ("best"))
         with open(os.path.join(opt.checkpoints_dir, opt.name)+"/best_iter.txt", "w") as f:
             f.write(str(cur_iter))
     else:
         torch.save(model.module.netG.state_dict(), path+'/%d_G.pth' % (cur_iter))
-        torch.save(model.module.netD.state_dict(), path+'/%d_D.pth' % (cur_iter))
-        torch.save(model.module.netDu.state_dict(), path + '/%d_Du.pth' % (cur_iter))
+        try:
+            torch.save(model.module.netD.state_dict(), path+'/%d_D.pth' % (cur_iter))
+        except:
+            pass
+        try:
+            torch.save(model.module.netDu_image.state_dict(), path+'/%d_Du_image.pth' % (cur_iter))
+            torch.save(model.module.netDu_label.state_dict(), path+'/%d_Du_label.pth' % (cur_iter))
+        except:
+            pass
+        try:
+            torch.save(model.module.netDu.state_dict(), path + '/%d_Du.pth' % (cur_iter))
+        except:
+            pass
         if not opt.no_EMA:
             torch.save(model.module.netEMA.state_dict(), path+'/%d_EMA.pth' % (cur_iter))
 

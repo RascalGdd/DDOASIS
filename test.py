@@ -5,16 +5,16 @@ import dataloaders.dataloaders as dataloaders
 import utils.utils as utils
 import config
 from utils.fid_scores import fid_pytorch
-from utils.drn_segment import drn_22_d_miou as drn_105_d_miou
+from utils.drn_segment import drn_105_d_miou as drn_105_d_miou
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import torch
 from torch.distributions import Categorical
 import os
 
-generate_images = True
+generate_images = False
 compute_miou_generation = True
-compute_fid_generation = True
+compute_fid_generation = False
 compute_miou_segmentation_network = False
 
 from models.generator import WaveletUpsample,InverseHaarTransform,HaarTransform,WaveletUpsample2
@@ -133,7 +133,8 @@ _,_, dataloader_val = dataloaders.get_dataloaders(opt)
 image_saver = utils.results_saver(opt)
 
 #--- create models ---#
-model = models.Unpaired_model(opt)
+#model = models.Unpaired_model(opt)
+model = models.Unpaired_model_cycle(opt)
 model = models.put_on_multi_gpus(model, opt)
 model.eval()
 
@@ -179,17 +180,17 @@ if compute_miou_generation :
 else :
     np_file = np.load(os.path.join(opt.checkpoints_dir,opt.name,'MIOU',"miou_log.npy"))
     first = list(np_file[0, :])
-    sercon = list(np_file[1, :])
+    sercon_miou = list(np_file[1, :])
     #first.append(epoch)
     #sercon.append(cur_fid)
-    np_file = [first, sercon]
-    print('miou score is :')
+    np_file = [first, sercon_miou]
+    print('max miou score is :')
     if opt.ckpt_iter == 'latest' :
-        print(sercon[-1])
+        print(sercon_miou[-1])
     elif opt.ckpt_iter == 'best' :
-        print(np.min(sercon))
+        print(np.max(sercon_miou))
     else :
-        print(sercon[first.index(float(opt.ckpt_iter))])
+        print(sercon_miou[first.index(float(opt.ckpt_iter))])
 
 if compute_fid_generation :
     fid_computer = fid_pytorch(opt, dataloader_val)
@@ -201,11 +202,17 @@ else :
     #first.append(epoch)
     #sercon.append(cur_fid)
     np_file = [first, sercon]
-    print('fid score is :')
+    #print('fid score is :')
     if opt.ckpt_iter == 'latest' :
         print(sercon[-1])
     elif opt.ckpt_iter == 'best' :
-        print(np.min(sercon))
+        print('min fid : ',np.min(sercon))
+        index = sercon.index(np.min(sercon))
+        #print(len(sercon))
+        #print(len(sercon_miou))
+        #print(index)
+        #print('miou : ',sercon_miou[index])
+
     else :
         print(sercon[first.index(float(opt.ckpt_iter))])
 

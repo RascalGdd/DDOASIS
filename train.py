@@ -1,5 +1,3 @@
-
-
 import torch
 import models.losses as losses
 import models.models as models
@@ -13,7 +11,7 @@ import config
 
 #--- read options ---#
 opt = config.read_arguments(train=True)
-
+print("nb of gpus: ", torch.cuda.device_count())
 #--- create utils ---#
 timer = utils.timer(opt)
 visualizer_losses = utils.losses_saver(opt)
@@ -26,7 +24,6 @@ miou_computer = miou_pytorch(opt,dataloader_val)
 #--- create models ---#
 model = models.Unpaired_model(opt)
 model = models.put_on_multi_gpus(model, opt)
-
 
 #--- create optimizers ---#
 optimizerG = torch.optim.Adam(model.module.netG.parameters(), lr=opt.lr_g, betas=(opt.beta1, opt.beta2))
@@ -105,8 +102,8 @@ for epoch in range(start_epoch, opt.num_epochs):
         if cur_iter % opt.freq_print == 0:
             im_saver.visualize_batch(model, image, label, cur_iter)
             timer(epoch, cur_iter)
-        if cur_iter % opt.freq_save_ckpt == 0:
-            utils.save_networks(opt, cur_iter, model)
+        #if cur_iter % opt.freq_save_ckpt == 0:
+        #    utils.save_networks(opt, cur_iter, model)
         if cur_iter % opt.freq_save_latest == 0:
             utils.save_networks(opt, cur_iter, model, latest=True)
         if cur_iter % opt.freq_fid == 0 and cur_iter > 0:

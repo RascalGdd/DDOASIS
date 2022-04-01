@@ -6,3 +6,6 @@ jobs/
 __pycache__/
 util/__pycache__/
 .idea/
+*.out
+*.sh
+pretrained_models/

@@ -71,6 +71,41 @@ class OASIS_Generator(nn.Module):
 
         return x
 
+    def forward_determinstic(self, input, noise_vector):
+        seg = input
+        edges = None
+        if self.opt.gpu_ids != "-1":
+            seg.cuda()
+        if not self.opt.no_3dnoise:
+            dev = seg.get_device() if self.opt.gpu_ids != "-1" else "cpu"
+            z = noise_vector.to(dev)
+            seg = torch.cat((z, seg), dim = 1)
+        if self.add_edges :
+            x = F.interpolate(torch.cat((seg,edges),dim = 1), size=(self.init_W, self.init_H))
+        else :
+            x = F.interpolate(seg, size=(self.init_W, self.init_H))
+        x = self.fc(x)
+        out = None
+        for i in range(self.opt.num_res_blocks):
+            x = self.body[i](x, seg,edges)
+
+            if self.opt.progressive_growing and out == None :
+                out = self.torgbs[i](x)
+            elif self.opt.progressive_growing :
+                out = self.torgbs[i](x,skip = out)
+
+            if i < self.opt.num_res_blocks-1:
+                x = self.up(x)
+
+        if self.opt.progressive_growing :
+            x = out
+            x = F.tanh(x)
+        else :
+            x = self.conv_img(F.leaky_relu(x, 2e-1))
+            x = F.tanh(x)
+
+        return x
+
 
 class ResnetBlock_with_SPADE(nn.Module):
     def __init__(self, fin, fout, opt):
@@ -1021,6 +1056,36 @@ class ResidualWaveletGenerator_1(nn.Module):
         x = F.tanh(x)
 
         return x
+
+    def forward_determinstic(self, input, noise_vector):
+        seg = input
+        edges = None
+        if self.opt.gpu_ids != "-1":
+            seg.cuda()
+        if not self.opt.no_3dnoise:
+            dev = seg.get_device() if self.opt.gpu_ids != "-1" else "cpu"
+            z = noise_vector.to(dev)
+            seg = torch.cat((z, seg), dim = 1)
+
+
+        x = F.interpolate(seg, size=(self.init_W, self.init_H))
+
+        x = self.fc(x)
+        for i in range(self.opt.num_res_blocks):
+            x_s,x = self.body[i](x, seg,edges)
+
+            if i < self.opt.num_res_blocks-1:
+                x = self.up(x)
+                x_s = self.up_residual(x_s)
+                x = x+x_s
+
+
+        x = self.conv_img(x+x_s)
+        x = self.iwt(x)
+        x = F.tanh(x)
+
+        return x
+
 
 class WaveletBlock_with_IWT_SPADE_HWT(nn.Module):
     def __init__(self, fin, fout, opt):

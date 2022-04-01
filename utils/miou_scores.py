@@ -10,7 +10,8 @@ from utils.fid_folder.inception import InceptionV3
 import matplotlib.pyplot as plt
 from utils import utils
 from utils.drn_segment import drn_105_d_miou
-
+from utils.upernet_segment import upernet101_miou
+from utils.deeplabV2_segment import deeplab_v2_miou
 
 # --------------------------------------------------------------------------#
 # This code is an adapted version of https://github.com/mseitzer/pytorch-fid
@@ -39,7 +40,14 @@ class miou_pytorch():
                     generated = netEMA(label,edges=edges)
                 image_saver(label, generated, data_i["name"])
 
-            answer = drn_105_d_miou(self.opt.results_dir,self.opt.name,str(current_iter))
+            if self.opt.dataset_mode == "ade20k":
+                answer = upernet101_miou(self.opt.results_dir, self.opt.name, str(current_iter))
+            if self.opt.dataset_mode == "cityscapes":
+                answer = drn_105_d_miou(self.opt.results_dir, self.opt.name, str(current_iter))
+            if self.opt.dataset_mode == "gtavtocityscapes":
+                answer = drn_105_d_miou(self.opt.results_dir, self.opt.name, str(current_iter))
+            if self.opt.dataset_mode == "coco":
+                answer = deeplab_v2_miou(self.opt.results_dir, self.opt.name, str(current_iter))
         netG.train()
         if not self.opt.no_EMA:
             netEMA.train()

@@ -212,13 +212,15 @@ class MIoUDataset(torch.utils.data.Dataset):
             	
             input_label = Image.fromarray(label_copy)
             input_label = self.to_tensor(label_copy)*255
-            data = data.unsqueeze(0)
-            data = torch.nn.functional.interpolate(data,scale_factor= 0.5, mode='bilinear')
-            data = data.squeeze(0)
+            resize = False
+            if resize :
+                data = data.unsqueeze(0)
+                data = torch.nn.functional.interpolate(data,scale_factor= 0.5, mode='bilinear')
+                data = data.squeeze(0)
 
-            input_label = input_label.unsqueeze(0)
-            input_label = torch.nn.functional.interpolate(input_label,scale_factor= 0.5, mode='nearest')
-            input_label = input_label.squeeze(0)
+                input_label = input_label.unsqueeze(0)
+                input_label = torch.nn.functional.interpolate(input_label,scale_factor= 0.5, mode='nearest')
+                input_label = input_label.squeeze(0)
 
 
 

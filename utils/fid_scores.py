@@ -43,7 +43,7 @@ class fid_pytorch():
                 if self.opt.gpu_ids != "-1":
                     image = image.cuda()
                 image = (image + 1) / 2
-                image = torch.nn.functional.interpolate(image,scale_factor = 0.5,mode ='nearest')
+                #image = torch.nn.functional.interpolate(image,scale_factor = 0.5,mode ='nearest')
                 pool_val = self.model_inc(image.float())[0][:, :, 0, 0]
                 pool += [pool_val]
         return torch.cat(pool, 0)
@@ -63,7 +63,7 @@ class fid_pytorch():
                 else:
                     generated = netEMA(label,edges=edges)
                 generated = (generated + 1) / 2
-                generated = torch.nn.functional.interpolate(generated,scale_factor= 0.5, mode='nearest')
+                #generated = torch.nn.functional.interpolate(generated,scale_factor= 0.5, mode='nearest')
                 pool_val = self.model_inc(generated.float())[0][:, :, 0, 0]
                 pool += [pool_val]
             pool = torch.cat(pool, 0)
