@@ -6,6 +6,8 @@ import os
 from PIL import Image
 import numpy as np
 from tqdm import tqdm
+from torch.utils.data.sampler import WeightedRandomSampler
+
 
 class CityscapesDataset(torch.utils.data.Dataset):
     def __init__(self, opt, for_metrics, dataset_supervised=None, for_supervision = False):
@@ -82,6 +84,10 @@ class CityscapesDataset(torch.utils.data.Dataset):
             self.weights = [ weight/min_weight for weight in self.weights ]
             self.for_supervision = for_supervision
 
+            counts = np.bincount(self.labels)
+            labels_weights = 1. / counts
+            self.weights = labels_weights[self.labels]
+            WeightedRandomSampler(self.weights, len(self.weights))
 
     def __len__(self,):
         return len(self.images)
