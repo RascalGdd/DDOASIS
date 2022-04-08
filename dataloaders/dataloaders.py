@@ -26,7 +26,7 @@ def get_dataloaders(opt):
     print("Created %s, size train: %d, size val: %d" % (dataset_name, len(dataset_train), len(dataset_val)))
 
 
-    dataloader_supervised = torch.utils.data.DataLoader(dataset_supervised, batch_size = opt.batch_size_supervised, sampler = dataset_supervised.sampler, shuffle = True, drop_last=True)
+    dataloader_supervised = torch.utils.data.DataLoader(dataset_supervised, batch_size = opt.batch_size_supervised, sampler = dataset_supervised.sampler, shuffle = False, drop_last=True)
     dataloader_train = torch.utils.data.DataLoader(dataset_train, batch_size = opt.batch_size_train, shuffle = True, drop_last=True)
    
     # dataloader_train =  dataloader_train.remove(dataloader_supervised.dataset.paths[0],1)
