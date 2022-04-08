@@ -84,10 +84,10 @@ class CityscapesDataset(torch.utils.data.Dataset):
             self.weights = [ weight/min_weight for weight in self.weights ]
             self.for_supervision = for_supervision
 
-            counts = np.bincount(self.labels)
-            labels_weights = 1. / counts
-            self.weights = labels_weights[self.labels]
-            WeightedRandomSampler(self.weights, len(self.weights))
+            # counts = np.bincount(self.labels)
+            # labels_weights = 1. / counts
+            # self.weights = labels_weights[self.labels]
+            self.sampler = WeightedRandomSampler(self.weights, len(self.weights))
 
     def __len__(self,):
         return len(self.images)
