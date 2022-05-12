@@ -16,7 +16,7 @@
 #echo $PYENV_ROOT
 #echo $PATH
 nvidia-smi
-conda activate testenv
+conda activate myenv
 # Run your python code
 CUDA_VISIBLE_DEVICES=0,1,2,3 python train.py --name oasis_unsupervised_gtavtocityscapes_B32_ch64 --dataset_mode gtavtocityscapes --gpu_ids 0,1,2,3 \
 --dataroot /data/public/cityscapes --no_labelmix \
